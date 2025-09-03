@@ -30,7 +30,7 @@ jobs:
             stefanfrijns/student-app:latest
   test:
     name: Test
-
+    needs: [ build ]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout the repository
