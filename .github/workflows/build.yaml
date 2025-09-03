@@ -48,19 +48,19 @@ jobs:
           curl http://localhost
           docker ps -aq | xargs docker stop | xargs docker rm
 
- deploy:
+  deploy:
    name: Deploy
    needs: [ test ]
-   runs-on: self-hosted
-   steps:
-     - uses: actions/checkout@v4
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
 
-     # Forceer het kubeconfig-pad voor alle volgende stappen
-     - name: Set kubeconfig
-       run: echo "KUBECONFIG=/etc/rancher/k3s/k3s.yaml" >> $GITHUB_ENV
-
-     - name: Apply manifests
-       run: |
-         kubectl apply -f kubernetes/deployment.yaml
-         kubectl apply -f kubernetes/nginx-service.yaml
-         kubectl rollout status deployment/student-devsecops --timeout=180s
+      # Forceer het kubeconfig-pad voor alle volgende stappen
+      - name: Set kubeconfig
+        run: echo "KUBECONFIG=/etc/rancher/k3s/k3s.yaml" >> $GITHUB_ENV
+ 
+      - name: Apply manifests
+        run: |
+          kubectl apply -f kubernetes/deployment.yaml
+          kubectl apply -f kubernetes/nginx-service.yaml
+          kubectl rollout status deployment/student-devsecops --timeout=180s
