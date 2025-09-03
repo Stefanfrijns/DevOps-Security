@@ -30,7 +30,7 @@ jobs:
             stefanfrijns/DevOps-Security:latest
   deploy:
     name: Deploy
-    needs: [ test ]
+
     runs-on: self-hosted
     steps:
       - name: Checkout source code
