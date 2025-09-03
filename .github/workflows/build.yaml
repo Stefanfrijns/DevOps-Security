@@ -47,7 +47,6 @@ jobs:
           sleep 10s
           curl http://localhost
           docker ps -aq | xargs docker stop | xargs docker rm
-
   deploy:
    name: Deploy
    needs: [ test ]
