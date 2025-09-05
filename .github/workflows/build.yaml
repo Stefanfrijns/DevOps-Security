@@ -67,16 +67,16 @@ jobs:
         # Als je i.p.v. /etc/rancher/k3s/k3s.yaml een user-kopie gebruikt:
         # run: echo "KUBECONFIG=/home/stefan/.kube/config" >> $GITHUB_ENV
 
-      # (optioneel) zet expliciet de image-tag naar deze commit (mag falen als dep nog niet bestaat)
-      - name: Update image to this commit
-        run: |
-          kubectl set image deployment/student-devsecops \
-            quoterxp=stefanfrijns/student-app:${GITHUB_SHA} --record || true
-
       - name: Apply manifests
         run: |
           kubectl apply -f kubernetes/deployment.yaml
           kubectl apply -f kubernetes/nginx-service.yaml
+
+      # Zet de image expliciet naar deze commit (immutabel), na apply
+      - name: Update image to this commit
+        run: |
+          kubectl set image deployment/student-devsecops \
+            quoterxp=stefanfrijns/student-app:${GITHUB_SHA} --record || true
 
       - name: Wait for rollout
         run: kubectl rollout status deployment/student-devsecops --timeout=180s
