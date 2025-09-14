@@ -1,4 +1,9 @@
+from markupsafe import escape
+
+
 def quote_fragment(id, text, attribution):
+    text = escape(text)
+    attribution = escape(attribution)
     return f"""
 <a href="/quotes/{id}" class="quote img{id % 13}">
   <q>{text}</q>
@@ -9,7 +14,9 @@ def quote_fragment(id, text, attribution):
 
 
 def comment_fragment(text,user_name,time):
-  time_html = f"<time>{time}</time>" if time else ""
+  text = escape(text)
+  user_name = escape(user_name) if user_name is not None else ""
+  time_html = f"<time>{escape(time)}</time>" if time else ""
   return f"""
 <section class="comment">
   <aside>
@@ -66,7 +73,7 @@ def page(content,user_id,title,error=None):
     return f"""<!DOCTYPE html>
 <html lang="en-US">
 <head>
-  <title>{title or "hallo"}</title>
+  <title>{escape(title) if title else "hallo"}</title>
   <meta charset="utf-8">
   <link rel="stylesheet" type="text/css" href="/static/style.css">
 </head>
@@ -75,7 +82,7 @@ def page(content,user_id,title,error=None):
 
 <header>
   <div class="title">
-    <a class="home" href="/">test 538094</a>
+    <a class="home" href="/">test </a>
     {links}
   </div>
 </header>
@@ -97,7 +104,7 @@ def page(content,user_id,title,error=None):
 <div class="modal">
   <form action="/signin" method="post">
     <p class="warn">WARNING!!: This site is intentionally insecure. Do not use passwords you may be using on other services.</p>
-    {f"<div class=error>{error}</div>" if error else ""}
+    {f"<div class=error>{escape(error)}</div>" if error else ""}
     <h3>Username</h3>
     <input type="text" name="username">
     <h3>Password</h3>

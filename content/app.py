@@ -1,7 +1,8 @@
-from flask import Flask, request, redirect, make_response
+from flask import Flask, request, redirect, make_response, abort
 import sqlite3
 import urllib
 import quoter_templates as templates
+from markupsafe import escape
 
 # Run using `poetry install && poetry run flask run --reload`
 app = Flask(__name__)
@@ -24,9 +25,31 @@ def log_request():
 @app.before_request
 def check_authentication():
     if 'user_id' in request.cookies:
-        request.user_id = int(request.cookies['user_id'])
+        try:
+            request.user_id = int(request.cookies['user_id'])
+        except (TypeError, ValueError):
+            request.user_id = None
     else:
         request.user_id = None
+
+
+# Basic input validation and cleaning
+def clean_text(s: str, max_len: int) -> str:
+    if s is None:
+        raise ValueError("Missing value")
+    s = s.strip()
+    if not s:
+        raise ValueError("Empty value")
+    return s[:max_len]
+
+
+@app.after_request
+def set_security_headers(resp):
+    resp.headers["Content-Security-Policy"] = "default-src 'self'; frame-ancestors 'none'; base-uri 'self'"
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    resp.headers["X-Frame-Options"] = "DENY"
+    resp.headers["Referrer-Policy"] = "no-referrer"
+    return resp
 
 
 # The main page
@@ -39,34 +62,63 @@ def index():
 # The quote comments page
 @app.route("/quotes/<int:quote_id>")
 def get_comments_page(quote_id):
-    quote = db.execute(f"select id, text, attribution from quotes where id={quote_id}").fetchone()
-    comments = db.execute(f"select text, datetime(time,'localtime') as time, name as user_name from comments c left join users u on u.id=c.user_id where quote_id={quote_id} order by c.id").fetchall()
+    quote = db.execute("select id, text, attribution from quotes where id = ?", (quote_id,)).fetchone()
+    comments = db.execute(
+        """
+        select text, datetime(time,'localtime') as time, name as user_name
+        from comments c
+        left join users u on u.id = c.user_id
+        where quote_id = ?
+        order by c.id
+        """,
+        (quote_id,)
+    ).fetchall()
     return templates.comments_page(quote, comments, request.user_id)
 
 
 # Post a new quote
 @app.route("/quotes", methods=["POST"])
 def post_quote():
+    try:
+        text = clean_text(request.form.get('text'), 1000)
+        attribution = clean_text(request.form.get('attribution'), 120)
+    except ValueError as e:
+        abort(400, description=str(e))
+
     with db:
-        db.execute(f"""insert into quotes(text,attribution) values("{request.form['text']}","{request.form['attribution']}")""")
+        db.execute(
+            "insert into quotes(text, attribution) values(?, ?)",
+            (text, attribution),
+        )
     return redirect("/#bottom")
 
 
 # Post a new comment
 @app.route("/quotes/<int:quote_id>/comments", methods=["POST"])
 def post_comment(quote_id):
+    try:
+        text = clean_text(request.form.get('text'), 1000)
+    except ValueError as e:
+        abort(400, description=str(e))
+
     with db:
-        db.execute(f"""insert into comments(text,quote_id,user_id) values("{request.form['text']}",{quote_id},{request.user_id})""")
+        db.execute(
+            "insert into comments(text, quote_id, user_id) values(?, ?, ?)",
+            (text, quote_id, request.user_id),
+        )
     return redirect(f"/quotes/{quote_id}#bottom")
 
 
 # Sign in user
 @app.route("/signin", methods=["POST"])
 def signin():
-    username = request.form["username"].lower()
-    password = request.form["password"]
+    username = request.form.get("username", "").lower().strip()
+    password = request.form.get("password", "")
 
-    user = db.execute(f"select id, password from users where name='{username}'").fetchone()
+    if not username or not password:
+        return redirect('/?error='+urllib.parse.quote("Username and password required"))
+
+    user = db.execute("select id, password from users where name = ?", (username,)).fetchone()
     if user: # user exists
         if password != user['password']:
             # wrong! redirect to main page with an error message
@@ -74,7 +126,7 @@ def signin():
         user_id = user['id']
     else: # new sign up
         with db:
-            cursor = db.execute(f"insert into users(name,password) values('{username}', '{password}')")
+            cursor = db.execute("insert into users(name, password) values(?, ?)", (username, password))
             user_id = cursor.lastrowid
     
     response = make_response(redirect('/'))

@@ -1,0 +1,4 @@
+POST /quotes {'text': "abc'); DROP TABLE quotes; --", 'attribution': 'att'}
+GET / 
+POST /quotes {'text': '<img src=x onerror=alert(1)>', 'attribution': 'a'}
+GET / 
