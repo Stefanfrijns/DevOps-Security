@@ -18,7 +18,10 @@ db.row_factory = sqlite3.Row
 log_file = open('access.log', 'a', buffering=1)
 @app.before_request
 def log_request():
-    log_file.write(f"{request.method} {request.path} {dict(request.form) if request.form else ''}\n")
+    data = dict(request.form) if request.form else {}
+    if 'password' in data:
+        data['password'] = '***'
+    log_file.write(f"{request.method} {request.path} {data}\n")
 
 
 # Set user_id on request if user is logged in, or else set it to None.
@@ -34,9 +37,9 @@ def check_authentication():
 
 
 # Basic input validation and cleaning
-def clean_text(s: str, max_len: int) -> str:
-    if s is None:
-        raise ValueError("Missing value")
+def clean_required(s: str | None, max_len: int) -> str:
+    if not s:
+        raise ValueError("Missing/empty value")
     s = s.strip()
     if not s:
         raise ValueError("Empty value")
@@ -44,10 +47,8 @@ def clean_text(s: str, max_len: int) -> str:
 
 
 @app.after_request
-def set_security_headers(resp):
-    resp.headers["Content-Security-Policy"] = "default-src 'self'; frame-ancestors 'none'; base-uri 'self'"
+def sec_headers(resp):
     resp.headers["X-Content-Type-Options"] = "nosniff"
-    resp.headers["X-Frame-Options"] = "DENY"
     resp.headers["Referrer-Policy"] = "no-referrer"
     return resp
 
@@ -56,7 +57,10 @@ def set_security_headers(resp):
 @app.route("/")
 def index():
     quotes = db.execute("select id, text, attribution from quotes order by id").fetchall()
-    return templates.main_page(quotes, request.user_id, request.args.get('error'))
+    # Sanitize error defensively before rendering
+    raw_error = request.args.get('error')
+    error = escape(raw_error) if raw_error else None
+    return templates.main_page(quotes, request.user_id, error)
 
 
 # The quote comments page
@@ -80,8 +84,8 @@ def get_comments_page(quote_id):
 @app.route("/quotes", methods=["POST"])
 def post_quote():
     try:
-        text = clean_text(request.form.get('text'), 1000)
-        attribution = clean_text(request.form.get('attribution'), 120)
+        text = clean_required(request.form.get('text'), 1000)
+        attribution = clean_required(request.form.get('attribution'), 120)
     except ValueError as e:
         abort(400, description=str(e))
 
@@ -97,7 +101,7 @@ def post_quote():
 @app.route("/quotes/<int:quote_id>/comments", methods=["POST"])
 def post_comment(quote_id):
     try:
-        text = clean_text(request.form.get('text'), 1000)
+        text = clean_required(request.form.get('text'), 1000)
     except ValueError as e:
         abort(400, description=str(e))
 
@@ -112,11 +116,11 @@ def post_comment(quote_id):
 # Sign in user
 @app.route("/signin", methods=["POST"])
 def signin():
-    username = request.form.get("username", "").lower().strip()
-    password = request.form.get("password", "")
-
-    if not username or not password:
-        return redirect('/?error='+urllib.parse.quote("Username and password required"))
+    try:
+        username = clean_required(request.form.get("username"), 64).lower()
+        password = clean_required(request.form.get("password"), 128)
+    except ValueError:
+        return redirect('/?error=' + urllib.parse.quote("Username and password required"))
 
     user = db.execute("select id, password from users where name = ?", (username,)).fetchone()
     if user: # user exists
