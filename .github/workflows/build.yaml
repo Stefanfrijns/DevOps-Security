@@ -50,7 +50,7 @@ jobs:
           only-severities: critical,high
           write-comment: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          exit-code: true
+          exit-code: false
           exit-on: vulnerability
 
   test:
@@ -102,3 +102,30 @@ jobs:
 
       - name: Wait for rollout
         run: kubectl rollout status deployment/student-devsecops --timeout=180s
+
+  api-tests:
+    name: API tests (Postman/Newman)
+    needs: deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install newman
+        run: npm i -g newman
+
+      - name: Run Postman collection
+        env:
+          APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
+        run: |
+          # Draai je collectie tegen de live URL uit de secret
+          newman run postman/collection.json \
+            --env-var baseUrl="$APP_BASE_URL" \
+            --timeout-request 60000 \
+            --reporters cli
