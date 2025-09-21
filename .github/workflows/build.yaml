@@ -52,7 +52,6 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           exit-code: false
 
-
   test:
     name: Test
     needs: scan
@@ -101,11 +100,9 @@ jobs:
         run: kubectl rollout status deployment/student-devsecops --timeout=180s
 
   automated-api-tests:
-    name: API tests (Postman CLI)
+    name: Automated API tests using Postman CLI
     needs: deploy
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -114,20 +111,9 @@ jobs:
           curl -o- "https://dl-cli.pstmn.io/install/linux64.sh" | sh
 
       - name: Login to Postman CLI
-        env:
-          POSTMAN_API_KEY: ${{ secrets.POSTMAN_API_KEY }}
-        run: postman login --with-api-key "$POSTMAN_API_KEY"
+        run: postman login --with-api-key ${{ secrets.POSTMAN_API_KEY }}
 
       - name: Run API tests
-        env:
-          # Optioneel: als je in de collection {{baseUrl}} gebruikt en die
-          # wil overriden vanuit GitHub Secrets, zet 'm hier:
-          # APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
-          :
         run: |
-          # Runnen tegen je collectie in de repo; vervang pad/naam indien anders.
-          # De -e waarde hieronder is jouw Postman Environment UID.
           postman collection run "${{ github.workspace }}/postman/collections/New Collection.json" \
             -e "38786624-e9785fe8-bf95-4d29-85eb-00210da734cd"
-          # Voor override van een variabele kan je toevoegen:
-          #   --env-var baseUrl="$APP_BASE_URL"
